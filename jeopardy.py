@@ -9,26 +9,42 @@ class Game:
 	"""Representation of a Jeopardy! game board.
 
 	Attributes:
-		score: total points one would recieve if this were a real Jeopardy! game.
-		categories[6]: list of categories for the current round
-		clues[6][5]: 2D array of {"clue", "response"} dicts, with each row corresponding to a category
+		- score: total points one would recieve if this were a real Jeopardy! game.
+		- categories[6]: list of categories for the current round
+		- clues[6][5]: 2D array of {"clue", "response"} dicts, with each row corresponding to a category
 			and each column corresponding to the dollar amount of that clue.
-		autoMode: bool that determines if player wants to step through the clues automatically, without
+		- autoMode: bool that determines if player wants to step through the clues automatically, without
 			even looking at the clue board.
+		- dailyDoubleCoords: [row, col] of daily double
 
 		------------- STATE DATA -------------
-		boardState[6][5]: Stores which questions have been answered or are unavailable
-		cluesRemaining: number of clues unanswered in the round
-		currentCtg: current category
-		currentAmt: current $ amount
+		- boardState[6][5]: Stores which questions have been answered or are unavailable
+		- cluesRemaining: number of clues unanswered in the round
+		- currentCtg: current category
+		- currentAmt: current $ amount
 
 		------------- FORMATTING DATA -------------
-		ctgSpacing: length of longest category name + 5
+		- ctgSpacing: length of longest category name + 1
+
+	Methods:
+		- __init__(self, gameId)
+		- printScore(self)
+		- newGame(self, gameId)
+		- initBoard(self, round)
+		- printBoard(self)
+		- stepToNextClue(self)
+		- giveClue(self, ctg, amt)
+		- prompt(self)
+		- autoPrompt(self)
+		- finalJeopardy(self)
+		- printScores(self, round="Jeopardy", selector="jeopardy_round")
+		- play(self)
 	"""
 	score = 0
 	boardState = [ [False] * 5 for _ in range(6)]
 	cluesRemaining = 0
 	autoMode = False
+	dailyDoubleCoords = [6, 6]
 
 	def __init__(self, gameId):
 		self.newGame(gameId)
@@ -41,6 +57,10 @@ class Game:
 		autoplay = input("Would you like to use autoplay? Y/N: ").lower()
 		if autoplay == 'y':
 			self.autoMode = True
+
+	def printScore(self):
+		print("Score: ", end='')
+		print(Back.WHITE + Fore.BLACK + f"{self.score}")
 
 	"""
 	newGame(self, gameId)
@@ -97,6 +117,10 @@ class Game:
 			self.boardState[row][col] = True
 			self.cluesRemaining += 1
 
+			# is this the Daily Double?
+			if correctResponse.find(class_="clue_value_daily_double"):
+				self.dailyDoubleCoords = [row, col]
+
 			# response gathering
 			toggleTuple = str(correctResponse.get('onmouseover'))[6:]
 
@@ -128,8 +152,8 @@ class Game:
 			print()
 			rowNum += 1
 
-		print("\nScore: ", end='')
-		print(Back.WHITE + Fore.BLACK + f"{self.score}")
+		print()
+		self.printScore()
 
 	"""
 	stepToNextClue(self)
@@ -148,6 +172,7 @@ class Game:
 			else:
 				self.currentAmt += 1
 
+
 	"""
 	giveClue(self, ctg, amt)
 
@@ -155,11 +180,24 @@ class Game:
 	their score.
 	"""
 	def giveClue(self, ctg, amt):
+		points = self.dollarAmounts[amt]
+		isDailyDouble = False
+
 		# displaying clue
 		print()
-		print(f'{self.categories[ctg]} for ', end='')
+		print(f'[{ctg + 1}] {self.categories[ctg]} for ', end='')
 		print(Back.GREEN + Fore.BLACK + f'${self.dollarAmounts[amt]}', end='')
 		print(":")
+
+		# Daily Double logic
+		if [ctg, amt] == self.dailyDoubleCoords:
+			isDailyDouble = True
+			self.printScore()
+			print(Back.LIGHTMAGENTA_EX + "\nDaily Double! Enter wager:", end='')
+			points = int(input(" "))
+			print()
+
+		# print clue
 		print(Fore.YELLOW + self.clues[ctg][amt]["clue"])
 		print()
 
@@ -167,8 +205,7 @@ class Game:
 
 		# if in auto mode, show score
 		if (self.autoMode):
-			print("Score: ", end='')
-			print(Back.WHITE + Fore.BLACK + f"{self.score}")
+			self.printScore()
 
 		# answer prompt
 		answer = input("Type answer here or press enter to pass: ").lower()
@@ -183,17 +220,21 @@ class Game:
 			print(f"Correct response: ", end='')
 			print(Fore.YELLOW + f"{correct_response}")
 			passed = True
+
+			if isDailyDouble:
+				self.score -= points
+				wrongAnswer = True
 		# Correct
 		elif answer == correct_response.lower():
 			print(Back.GREEN + Fore.BLACK + "Correct!")
-			self.score += self.dollarAmounts[amt]
+			self.score += points
 		# Incorrect
 		else:
 			wrongAnswer = True
 			print("You fucking numbskull.\n")
 			print(f"Correct response: ", end='')
 			print(Fore.RED + f"{correct_response}")
-			self.score -= self.dollarAmounts[amt]
+			self.score -= points
 
 		# logging board state
 		self.boardState[ctg][amt] = False
@@ -202,12 +243,12 @@ class Game:
 
 		# did we make a judgement error?
 		if wrongAnswer or passed:
-			answer = input("Press enter to continue, or 'y'/';' if you actually got it right. ")
-			if answer == 'y' or answer == ';':
+			answer = input("Press enter to continue, or another key if you actually got it right. ")
+			if answer != '':
 				if wrongAnswer:
-					self.score += 2 * self.dollarAmounts[amt]
+					self.score += 2 * points
 				else:
-					self.score += self.dollarAmounts[amt]
+					self.score += points
 			
 			return
 		
@@ -259,8 +300,7 @@ class Game:
 		# displaying category
 		category = self.page.select('.final_round .category_name')
 		print(f"Category: {category[0].getText()}")
-		print("Score: ", end='')
-		print(Back.WHITE + Fore.BLACK + f"{self.score}")
+		self.printScore()
 
 		wager = int(input("\nEnter your wager: "))
 
@@ -288,8 +328,8 @@ class Game:
 			print(Fore.RED + f"{correct_response}")
 			self.score -= wager
 
-			answer = input("Press enter to continue, or 'y'/';' if you actually got it right. ")
-			if answer == 'y' or answer == ';':
+			answer = input("Press enter to continue, or another key if you actually got it right. ")
+			if answer != '':
 				self.score += 2 * wager
 
 	"""
@@ -302,12 +342,11 @@ class Game:
 		print(f"\nScore after {round} round: ", end='')
 		print(Fore.GREEN + f"{self.score}")
 
-		if (round != "Jeopardy"):
-			scores = self.page.find(id=selector).find_all(class_=["score_positive", "score_negative"])
-			print(f"Other scores: ", end='')
-			for score in scores[:3]:
-				print(f"{score.getText()} ", end='')
-			print()
+		scores = self.page.find(id=selector).find_all(class_=["score_positive", "score_negative"])
+		print(f"Other scores: ", end='')
+		for score in scores[:3]:
+			print(f"{score.getText()} ", end='')
+		print()
 		
 		input("Press enter to continue.")
 
@@ -331,7 +370,7 @@ class Game:
 			promptFunc()
 
 		system('clear')
-		input("You have finished the Jeopardy round. Press enter to continue on to Double Jeopardy.")
+		self.printScores()
 		self.initBoard("double_jeopardy_round")
 
 		if (self.autoMode):
@@ -367,7 +406,7 @@ def main():
 	game = Game(gameId)
 	game.play()
 
-	print("Oh boy, that was fun! Bye!")
+	print("\nOh boy, that was fun! Bye!")
 
 
 if __name__ == '__main__':
