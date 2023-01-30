@@ -1,6 +1,7 @@
 import requests, sys, webbrowser, bs4
 from ast import literal_eval as make_tuple
 from colorama import init as color_init, Fore, Back
+from os import system
 
 color_init(autoreset=True)
 
@@ -12,6 +13,8 @@ class Game:
 		categories[6]: list of categories for the current round
 		clues[6][5]: 2D array of {"clue", "response"} dicts, with each row corresponding to a category
 			and each column corresponding to the dollar amount of that clue.
+		autoMode: bool that determines if player wants to step through the clues automatically, without
+			even looking at the clue board.
 
 		------------- STATE DATA -------------
 		boardState[6][5]: Stores which questions have been answered or are unavailable
@@ -25,10 +28,19 @@ class Game:
 	score = 0
 	boardState = [ [False] * 5 for _ in range(6)]
 	cluesRemaining = 0
+	autoMode = False
 
 	def __init__(self, gameId):
 		self.newGame(gameId)
 		self.initBoard()
+
+		system('clear')
+		title = self.page.select('#game_title > h1')
+		print(f"\n{title[0].getText()}\n")
+
+		autoplay = input("Would you like to use autoplay? Y/N: ").lower()
+		if autoplay == 'y':
+			self.autoMode = True
 
 	"""
 	newGame(self, gameId)
@@ -43,22 +55,30 @@ class Game:
 		res.raise_for_status()
 		self.page = bs4.BeautifulSoup(res.text, features="html.parser")
 
+		# check if game exists
+		error = self.page.select('#content .error')
+		if (error):
+			print("Game does not exist.")
+			sys.exit()
+
 	"""
 	initBoard(self, round)
 		round is in ["jeopardy_round", "double_jeopardy_round"]
 
 	Initializes the categories, dollar amounts, and clues for the specified {round}.
 	"""
-	def initBoard(self, round):
+	def initBoard(self, round="jeopardy_round"):
 		self.cluesRemaining = 0
 		self.currentCtg = self.currentAmt = 0
 
+		# setting dollar amounts
 		if round == "double_jeopardy_round":
 			self.dollarAmounts = [400, 800, 1200, 1600, 2000]
 		else:
 			round = "jeopardy_round" # default
 			self.dollarAmounts = [200, 400, 600, 800, 1000]
 		
+		# loading categories
 		html_categories = self.page.select(f'#{round} .category_name')
 		self.categories = [c.getText() for c in html_categories]
 		self.ctgSpacing = max([len(c) for c in self.categories]) + 1
@@ -112,6 +132,88 @@ class Game:
 		print(Back.WHITE + Fore.BLACK + f"{self.score}")
 
 	"""
+	stepToNextClue(self)
+
+	Advances to the next clue in the category. If none are left, advances
+	to the next category.
+	"""
+	def stepToNextClue(self):
+		if (self.cluesRemaining <= 0):
+			return
+
+		while (not self.boardState[self.currentCtg][self.currentAmt]):
+			if self.currentAmt == 4: # end of the category
+				self.currentAmt = 0
+				self.currentCtg += 1
+			else:
+				self.currentAmt += 1
+
+	"""
+	giveClue(self, ctg, amt)
+
+	Displays the clue in {ctg} for {amt}. Lets user input an answer, interprets it, and updates
+	their score.
+	"""
+	def giveClue(self, ctg, amt):
+		# displaying clue
+		print()
+		print(f'{self.categories[ctg]} for ', end='')
+		print(Back.GREEN + Fore.BLACK + f'${self.dollarAmounts[amt]}', end='')
+		print(":")
+		print(Fore.YELLOW + self.clues[ctg][amt]["clue"])
+		print()
+
+		correct_response = self.clues[ctg][amt]['response']
+
+		# if in auto mode, show score
+		if (self.autoMode):
+			print("Score: ", end='')
+			print(Back.WHITE + Fore.BLACK + f"{self.score}")
+
+		# answer prompt
+		answer = input("Type answer here or press enter to pass: ").lower()
+		print()
+
+		# interpreting response and updating score
+		wrongAnswer = False
+		passed = False
+
+		# Pass
+		if answer == '':
+			print(f"Correct response: ", end='')
+			print(Fore.YELLOW + f"{correct_response}")
+			passed = True
+		# Correct
+		elif answer == correct_response.lower():
+			print(Back.GREEN + Fore.BLACK + "Correct!")
+			self.score += self.dollarAmounts[amt]
+		# Incorrect
+		else:
+			wrongAnswer = True
+			print("You fucking numbskull.\n")
+			print(f"Correct response: ", end='')
+			print(Fore.RED + f"{correct_response}")
+			self.score -= self.dollarAmounts[amt]
+
+		# logging board state
+		self.boardState[ctg][amt] = False
+		self.cluesRemaining -= 1
+		print(f"Score: {self.score}\n")
+
+		# did we make a judgement error?
+		if wrongAnswer or passed:
+			answer = input("Press enter to continue, or 'y'/';' if you actually got it right. ")
+			if answer == 'y' or answer == ';':
+				if wrongAnswer:
+					self.score += 2 * self.dollarAmounts[amt]
+				else:
+					self.score += self.dollarAmounts[amt]
+			
+			return
+		
+		input("Press enter to continue.")
+
+	"""
 	prompt(self)
 
 	Contains most of the gameplpay logic. Prints the board, lets the user pick a clue, displays the clue, 
@@ -124,12 +226,7 @@ class Game:
 
 		ctg = amt = 0
 		if clueInput == '': # auto-continue
-			while (not self.boardState[self.currentCtg][self.currentAmt]):
-				if self.currentAmt == 4: # end of the category
-					self.currentAmt = 0
-					self.currentCtg += 1
-				else:
-					self.currentAmt += 1
+			self.stepToNextClue()
 
 			ctg = self.currentCtg
 			amt = self.currentAmt
@@ -146,50 +243,71 @@ class Game:
 				else: # valid clue
 					break
 
-		# displaying clue
-		print()
-		print(f'{self.categories[ctg]} for ${self.dollarAmounts[amt]}:')
-		print(Fore.YELLOW + self.clues[ctg][amt]["clue"])
-		print()
+		system('clear')
+		self.giveClue(ctg, amt)
 
-		correct_response = self.clues[ctg][amt]['response']
+	def autoPrompt(self):
+		self.stepToNextClue()
+		self.giveClue(self.currentCtg, self.currentAmt)
+
+	"""
+	finalJeopardy(self)
+
+	Plays through the Final Jeopardy round
+	"""
+	def finalJeopardy(self):
+		# displaying category
+		category = self.page.select('.final_round .category_name')
+		print(f"Category: {category[0].getText()}")
+		print("Score: ", end='')
+		print(Back.WHITE + Fore.BLACK + f"{self.score}")
+
+		wager = int(input("\nEnter your wager: "))
+
+		# getting clue
+		finalClue = self.page.select('.final_round .category > div')
+		toggleTuple = make_tuple(str(finalClue[0].get('onmouseout'))[6:])
+		print(Fore.YELLOW + f"\n{toggleTuple[2]}")
+
+		# getting correct response
+		toggleTuple = make_tuple(str(finalClue[0].get('onmouseover'))[6:])
+		correct_response = bs4.BeautifulSoup(toggleTuple[2], features="html.parser").select('.correct_response')[0].getText()
 
 		# answer prompt
-		answer = input("Type answer here or press enter to pass: ").lower()
+		answer = input("\nType answer here: ").lower()
 		print()
 
-		# interpreting response and updating score
-		wrongAnswer = False
-
-		# Pass
-		if answer == '':
-			print(f"Correct response: ", end='')
-			print(Back.YELLOW + f"{correct_response}")
 		# Correct
-		elif answer == correct_response.lower():
-			print(Back.GREEN + "Correct!")
-			self.score += self.dollarAmounts[amt]
+		if answer == correct_response.lower():
+			print(Back.GREEN + Fore.BLACK + "Correct!")
+			self.score += wager
 		# Incorrect
 		else:
-			wrongAnswer = True
 			print("You fucking numbskull.\n")
 			print(f"Correct response: ", end='')
-			print(Back.RED + Fore.BLACK + f"{correct_response}")
-			self.score -= self.dollarAmounts[amt]
+			print(Fore.RED + f"{correct_response}")
+			self.score -= wager
 
-		# logging board state
-		self.boardState[ctg][amt] = False
-		self.cluesRemaining -= 1
-		print(f"Score: {self.score}\n")
+			answer = input("Press enter to continue, or 'y'/';' if you actually got it right. ")
+			if answer == 'y' or answer == ';':
+				self.score += 2 * wager
 
-		# did we make a judgement error?
-		if(wrongAnswer):
-			answer = input("Press enter to continue, or 'y' if you actually got it right. ")
-			if answer == 'y':
-				self.score += self.dollarAmounts[amt]
-				print(f"\nScore: {self.score}")
-			else:
-				return
+	"""
+	printScores(self, round="Jeopardy", selector="jeopardy_round")
+
+	Prints your score and the other players' scores after a round. Does not print others' scores til
+	after Double Jeopardy.
+	"""
+	def printScores(self, round="Jeopardy", selector="jeopardy_round"):
+		print(f"\nScore after {round} round: ", end='')
+		print(Fore.GREEN + f"{self.score}")
+
+		if (round != "Jeopardy"):
+			scores = self.page.find(id=selector).find_all(class_=["score_positive", "score_negative"])
+			print(f"Other scores: ", end='')
+			for score in scores[:3]:
+				print(f"{score.getText()} ", end='')
+			print()
 		
 		input("Press enter to continue.")
 
@@ -200,24 +318,40 @@ class Game:
 	then goes through the double jeopardy round, then to final jeopardy.
 	"""
 	def play(self):
+		if self.autoMode:
+			system('clear')
+			print("Welcome to the Jeopardy Round. Here is your board:\n")
+			self.printBoard()
+			input("Press enter to play.")
+
+		promptFunc = self.autoPrompt if self.autoMode else self.prompt
+
 		while(self.cluesRemaining > 0):
-			self.prompt()
+			system('clear')
+			promptFunc()
 
-		print(f"\nScore after Jeopardy round: ", end='')
-		print(Fore.GREEN + f"{self.score}")
-		input("Press enter to continue on to Double Jeopardy.")
+		system('clear')
+		input("You have finished the Jeopardy round. Press enter to continue on to Double Jeopardy.")
+		self.initBoard("double_jeopardy_round")
 
-		self.cluesRemaining = 30
+		if (self.autoMode):
+			system('clear')
+			print("Welcome to the Double Jeopardy Round. Here is your board:\n")
+			self.printBoard()
+			input("Press enter to play.")
 
 		while (self.cluesRemaining > 0):
-			self.prompt()
+			system('clear')
+			promptFunc()
 
-		print(f"\nScore after Double Jeopardy round: ", end='')
-		print(Fore.GREEN + f"{self.score}")
-		input("Press enter to continue on to Final Jeopardy.")
+		self.printScores("Double Jeopardy", "double_jeopardy_round")
 
-		print("Ope this hasn't been implemented yet. See ya!")
+		print("Welcome to Final Jeopardy.\n")
+		self.finalJeopardy()
+		self.printScores("Final Jeopardy", "final_jeopardy_round")
 		
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------		
 
 def main():
 	if len(sys.argv) != 2:
@@ -225,8 +359,8 @@ def main():
 		sys.exit()
 
 	gameId = int(sys.argv[1])
-	if gameId < 1 or gameId > 6423:
-		print('Game ID must be between 1 and 6423')
+	if gameId < 1:
+		print('Game ID must positive')
 		sys.exit()
 
 	print('Loading your Jeopardy game...')
