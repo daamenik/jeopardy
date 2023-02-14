@@ -2,6 +2,10 @@ import requests, sys, webbrowser, bs4
 from ast import literal_eval as make_tuple
 from colorama import init as color_init, Fore, Back
 from os import system
+from pathlib import Path
+import pandas as pd
+import csv
+import argparse
 
 color_init(autoreset=True)
 
@@ -18,10 +22,10 @@ class Game:
 		- dailyDoubleCoords: [row, col] of daily double
 
 		------------- STATE DATA -------------
-		- boardState[6][5]: Stores which questions have been answered or are unavailable
+		- boardState[6][5]: Stores which questions have been answered or are unavailable (denoted by bool)
 		- cluesRemaining: number of clues unanswered in the round
-		- currentCtg: current category
-		- currentAmt: current $ amount
+		- currentCtg: current category (auto mode)
+		- currentAmt: current $ amount (auto mode)
 
 		------------- FORMATTING DATA -------------
 		- ctgSpacing: length of longest category name + 1
@@ -40,19 +44,10 @@ class Game:
 		- printScores(self, round="Jeopardy", selector="jeopardy_round")
 		- play(self)
 	"""
-	score = 0
-	boardState = [ [False] * 5 for _ in range(6)]
-	cluesRemaining = 0
 	autoMode = False
-	dailyDoubleCoords = [6, 6]
 
 	def __init__(self, gameId):
 		self.newGame(gameId)
-		self.initBoard()
-
-		system('clear')
-		title = self.page.select('#game_title > h1')
-		print(f"\n{title[0].getText()}\n")
 
 		autoplay = input("Would you like to use autoplay? Y/N: ").lower()
 		if autoplay == 'y':
@@ -68,6 +63,12 @@ class Game:
 	Retrieves and reads HTML data for game #{gameId}
 	"""
 	def newGame(self, gameId):
+		# reset member vars
+		self.score = 0
+		self.boardState = [ [False] * 5 for _ in range(6)]
+		self.cluesRemaining = 0
+		self.dailyDoubleCoords = [6, 6]
+
 		self.gameId = gameId
 
 		# loading categories
@@ -80,6 +81,13 @@ class Game:
 		if (error):
 			print("Game does not exist.")
 			sys.exit()
+
+		# initialize board and print game info
+		self.initBoard()
+
+		system('clear')
+		title = self.page.select('#game_title > h1')
+		print(f"\n{title[0].getText()}\n")
 
 	"""
 	initBoard(self, round)
@@ -302,7 +310,10 @@ class Game:
 		print(f"Category: {category[0].getText()}")
 		self.printScore()
 
-		wager = int(input("\nEnter your wager: "))
+		wager = 0
+		wagerAnswer = input("\nEnter your wager: ")
+		if wagerAnswer != "":
+			wager = int(wagerAnswer)
 
 		# getting clue
 		finalClue = self.page.select('.final_round .category > div')
@@ -390,21 +401,158 @@ class Game:
 		self.printScores("Final Jeopardy", "final_jeopardy_round")
 		
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------		
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+class GameLog:
+	gameIds = []
+	idIndex = 0
+	season = 0
+	seasonCachePath = ""
+
+	def __init__(self, season):
+		if season < 1 or season > 39:
+			print("There are only 39 seasons of Jeopardy.")
+			sys.exit()
+
+		self.season = season
+
+		# read file with season/game mapping
+		self.df = pd.read_csv(Path('.', 'cache', 'gamelog.csv'), header=None)
+		self.idIndex = self.df.iat[season - 1, 0]
+		self.seasonCachePath = Path('.', 'cache', f"{season}.csv")
+
+		if (self.seasonCachePath.exists()):
+			self.readGameIdsFromCache()
+		else:
+			self.scrapeGameIdsForSeason()	
+
+	"""
+	__del__(self)
+
+	Destructor. Updates the gamelog.
+	"""
+	def __del__(self):
+		self.df.to_csv(Path('.', 'cache', 'gamelog.csv'), index=False, header=False)
+
+	"""
+	scrapeGameIdsForSeason(self)
+
+	Given a season, scrapes the game IDs for that season and places them into the cache
+	in a file called {self.season}.csv, as well as this object's self.gameIds array
+	"""
+	def scrapeGameIdsForSeason(self):
+		# read in season page
+		res = requests.get(f"https://j-archive.com/showseason.php?season={self.season}")
+		res.raise_for_status()
+		currentSeasonPage = bs4.BeautifulSoup(res.text, features="html.parser")
+
+		# get game ids
+		self.gameIds = [int(a.get('href').split('=')[1]) for a in currentSeasonPage.table.find_all('a')]
+		self.gameIds.reverse()
+
+		# write game IDs to cache
+		with open(self.seasonCachePath, 'w') as cache:
+			for id in self.gameIds[:-1]:
+				cache.write(f"{id},")
+			cache.write(f"{self.gameIds[-1]}")
+
+
+	def readGameIdsFromCache(self):
+		with open(self.seasonCachePath, newline='') as cache:
+			reader = csv.reader(cache)
+			self.gameIds = [int(id) for id in list(reader)[0]]
+
+	def getCurrentGameId(self):
+		# have we reached the end of the season?
+		if self.idIndex == len(self.gameIds):
+			self.df.iat[self.season - 1, 0] = 0
+			print("END OF SEASON REACHED.")
+			sys.exit()
+
+		id = self.gameIds[self.idIndex]
+		self.idIndex += 1
+		self.df.iat[self.season - 1, 0] = self.idIndex
+
+		self.df.to_csv(Path('.', 'cache', 'gamelog.csv'), index=False, header=False)
+
+		return id
+
+	"""
+	getNextGameId(self)
+
+	Gets the next game ID in the current season you're playing through. If you've reached the end,
+	it tells you and resets your progress in the season to zero.
+	"""
+	def getNextGameId(self):
+		self.idIndex += 1
+		if self.idIndex > len(self.gameIds):
+			self.df.iat[self.season - 1, 0] = 0
+			print("END OF SEASON REACHED.")
+			sys.exit()
+
+		self.df.iat[self.season - 1, 0] = self.idIndex
+		return self.getCurrentGameId()
+
+	
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def main():
-	if len(sys.argv) != 2:
-		print('Usage: python3 jeopardy.py gameId')
-		sys.exit()
+	parser = argparse.ArgumentParser()
 
-	gameId = int(sys.argv[1])
-	if gameId < 1:
-		print('Game ID must positive')
-		sys.exit()
+	parser.add_argument('-s', '--season', help='Season you would like to start or continue playing through.')
+	parser.add_argument('-g', '--game', metavar='gameID', help='ID of specific game you would like to play.')
 
-	print('Loading your Jeopardy game...')
-	game = Game(gameId)
-	game.play()
+	args = parser.parse_args()
+
+	# play through season
+	if args.season:
+		gl = GameLog(int(args.season))
+		gameId = gl.getCurrentGameId()
+
+		print("Loading your Jeopardy game...")
+		game = Game(gameId)
+		game.play()
+
+		# do we want to keep playing?
+		keepPlaying = input("Play next game in season? Y/N: ").lower()
+		while keepPlaying == 'y':
+			gameId = gl.getCurrentGameId()
+
+			print("Loading your Jeopardy game...")
+			game.newGame(gameId)
+			game.play()
+			keepPlaying = input("Play next game in season? Y/N: ").lower()
+
+
+	# play one game only
+	elif args.game:
+		gameId = int(args.game)
+		if gameId < 1:
+			print('Game ID must positive')
+			sys.exit()
+		
+		print("Loading your Jeopardy game...")
+		game = Game(gameId)
+		game.play()
+		
+
+	# f = open('./gamelog.csv', 'a')
+	# for x in range(39):
+	# 	f.write(f"{x+1},0\n")
+	# if len(sys.argv) != 2:
+	# 	print('Usage: python3 jeopardy.py gameId')
+	# 	sys.exit()
+
+	# gameId = int(sys.argv[1])
+	# if gameId < 1:
+	# 	print('Game ID must positive')
+	# 	sys.exit()
+
+	# print('Loading your Jeopardy game...')
+	# game = Game(gameId)
+	# game.play()
 
 	print("\nOh boy, that was fun! Bye!")
 
