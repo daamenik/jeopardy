@@ -85,7 +85,7 @@ class Game:
 		# initialize board and print game info
 		self.initBoard()
 
-		system('clear')
+		system('cls||clear')
 		title = self.page.select('#game_title > h1')
 		print(f"\n{title[0].getText()}\n")
 
@@ -239,7 +239,6 @@ class Game:
 		# Incorrect
 		else:
 			wrongAnswer = True
-			print("You fucking numbskull.\n")
 			print(f"Correct response: ", end='')
 			print(Fore.RED + f"{correct_response}")
 			self.score -= points
@@ -292,7 +291,7 @@ class Game:
 				else: # valid clue
 					break
 
-		system('clear')
+		system('cls||clear')
 		self.giveClue(ctg, amt)
 
 	def autoPrompt(self):
@@ -334,7 +333,6 @@ class Game:
 			self.score += wager
 		# Incorrect
 		else:
-			print("You fucking numbskull.\n")
 			print(f"Correct response: ", end='')
 			print(Fore.RED + f"{correct_response}")
 			self.score -= wager
@@ -369,7 +367,7 @@ class Game:
 	"""
 	def play(self):
 		if self.autoMode:
-			system('clear')
+			system('cls||clear')
 			print("Welcome to the Jeopardy Round. Here is your board:\n")
 			self.printBoard()
 			input("Press enter to play.")
@@ -377,21 +375,21 @@ class Game:
 		promptFunc = self.autoPrompt if self.autoMode else self.prompt
 
 		while(self.cluesRemaining > 0):
-			system('clear')
+			system('cls||clear')
 			promptFunc()
 
-		system('clear')
+		system('cls||clear')
 		self.printScores()
 		self.initBoard("double_jeopardy_round")
 
 		if (self.autoMode):
-			system('clear')
+			system('cls||clear')
 			print("Welcome to the Double Jeopardy Round. Here is your board:\n")
 			self.printBoard()
 			input("Press enter to play.")
 
 		while (self.cluesRemaining > 0):
-			system('clear')
+			system('cls||clear')
 			promptFunc()
 
 		self.printScores("Double Jeopardy", "double_jeopardy_round")
@@ -416,8 +414,14 @@ class GameLog:
 
 		self.season = season
 
+		gameLogCachePath = Path('.', 'cache', 'gamelog.csv')
+		if not gameLogCachePath.exists():
+			with open(gameLogCachePath, 'w') as gameLog:
+				for i in range(39):
+					gameLog.write("0\n")
+
 		# read file with season/game mapping
-		self.df = pd.read_csv(Path('.', 'cache', 'gamelog.csv'), header=None)
+		self.df = pd.read_csv(gameLogCachePath, header=None)
 		self.idIndex = self.df.iat[season - 1, 0]
 		self.seasonCachePath = Path('.', 'cache', f"{season}.csv")
 
@@ -508,6 +512,7 @@ def main():
 
 	# play through season
 	if args.season:
+		print("Loading season data...")
 		gl = GameLog(int(args.season))
 		gameId = gl.getCurrentGameId()
 
