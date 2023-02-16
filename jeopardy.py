@@ -541,23 +541,6 @@ def main():
 		print("Loading your Jeopardy game...")
 		game = Game(gameId)
 		game.play()
-		
-
-	# f = open('./gamelog.csv', 'a')
-	# for x in range(39):
-	# 	f.write(f"{x+1},0\n")
-	# if len(sys.argv) != 2:
-	# 	print('Usage: python3 jeopardy.py gameId')
-	# 	sys.exit()
-
-	# gameId = int(sys.argv[1])
-	# if gameId < 1:
-	# 	print('Game ID must positive')
-	# 	sys.exit()
-
-	# print('Loading your Jeopardy game...')
-	# game = Game(gameId)
-	# game.play()
 
 	print("\nOh boy, that was fun! Bye!")
 
