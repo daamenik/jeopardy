@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import csv
 import argparse
+import string
 
 color_init(autoreset=True)
 
@@ -209,15 +210,17 @@ class Game:
 		print(Fore.YELLOW + self.clues[ctg][amt]["clue"])
 		print()
 
-		correct_response = self.clues[ctg][amt]['response']
-
 		# if in auto mode, show score
 		if (self.autoMode):
 			self.printScore()
 
+		correctResponseOriginal = self.clues[ctg][amt]['response']
+		correctResponse = self.standardizeResponse(correctResponseOriginal)
+
 		# answer prompt
 		answer = input("Type answer here or press enter to pass: ").lower()
 		print()
+		answer = self.standardizeResponse(answer) if answer != '' else answer
 
 		# interpreting response and updating score
 		wrongAnswer = False
@@ -226,21 +229,21 @@ class Game:
 		# Pass
 		if answer == '':
 			print(f"Correct response: ", end='')
-			print(Fore.YELLOW + f"{correct_response}")
+			print(Fore.YELLOW + f"{correctResponseOriginal}")
 			passed = True
 
 			if isDailyDouble:
 				self.score -= points
 				wrongAnswer = True
 		# Correct
-		elif answer == correct_response.lower():
+		elif answer == correctResponse:
 			print(Back.GREEN + Fore.BLACK + "Correct!")
 			self.score += points
 		# Incorrect
 		else:
 			wrongAnswer = True
 			print(f"Correct response: ", end='')
-			print(Fore.RED + f"{correct_response}")
+			print(Fore.RED + f"{correctResponseOriginal}")
 			self.score -= points
 
 		# logging board state
@@ -398,6 +401,31 @@ class Game:
 		self.finalJeopardy()
 		self.printScores("Final Jeopardy", "final_jeopardy_round")
 		
+	"""
+	standardizeResponse(self, originalResponse)
+		returns stdResponse (string)
+
+	transform current response to minimize small, trivial differences from user input:
+		- make lowercase
+		- strip all punctuation
+		- remove leading articles (a and an)
+		- change "&" to "and"
+	"""
+	def standardizeResponse(self, originalResponse):
+		stdResponse = originalResponse.lower()
+		stdResponse = stdResponse.replace("&", "and")
+		stdResponse = stdResponse.translate(str.maketrans('', '', string.punctuation))
+
+		if stdResponse[0] == 'a' or stdResponse[0] == 't':
+			firstWord = stdResponse.split(' ')[0]
+			if firstWord == 'a':
+				stdResponse = stdResponse[2:]
+			elif firstWord == 'an':
+				stdResponse = stdResponse[3:]
+			elif firstWord == 'the':
+				stdResponse = stdResponse[4:]
+		
+		return stdResponse
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -428,7 +456,7 @@ class GameLog:
 		if (self.seasonCachePath.exists()):
 			self.readGameIdsFromCache()
 		else:
-			self.scrapeGameIdsForSeason()	
+			self.scrapeGameIdsForSeason()
 
 	"""
 	__del__(self)
