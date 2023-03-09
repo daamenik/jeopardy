@@ -10,6 +10,100 @@ import string
 
 color_init(autoreset=True)
 
+class Stats:
+	"""Contains and updates stats for your overall Jeopardy performance
+
+	Attributes:
+		- numCorrectResponses: array that holds the number of correct J! and DJ! responses for each game
+		- numCorrectDailyDoubles: array that holds the number of Daily Doubles answered correctly each game
+		- finalJeopardyCorrect: array of bools that reflect whether or not you got the FJ! correct each game
+		- currentGameComplete: used in the self.aggregate() function. If this is false, it will not count the data
+			from the incomplete game.
+
+	Methods:
+		- initForNewGame(self)
+		- addCorrectResponse(self, isDailyDouble=False)
+		- addCorrectFinalJeopardy(self)
+		- aggregate(self)
+		- Destructor
+
+	"""
+	numCorrectResponses = []
+	numCorrectDailyDoubles = []
+	finalJeopardyCorrect = []
+	currentGameComplete = False
+
+	# adds new data to the stat arrays
+	def initForNewGame(self):
+		self.numCorrectResponses.append(0)
+		self.numCorrectDailyDoubles.append(0)
+		self.finalJeopardyCorrect.append(False)
+		self.currentGameComplete = False
+	
+	# adds correct response (or correct Daily Double response)
+	def addCorrectResponse(self, isDailyDouble=False):
+		self.numCorrectResponses[-1] += 1
+		if isDailyDouble:
+			self.numCorrectDailyDoubles[-1] += 1
+
+	# adds correct FJ! response
+	def addCorrectFinalJeopardy(self):
+		self.finalJeopardyCorrect[-1] = True
+
+	"""
+	aggregate(self)
+
+	Responsible for creating and updating stats in the store. Creates stats.csv file if it doesn't
+	exist, and uses data within it and within the class' attribute arrays to aggregate overall performance
+	data. Fired upon class' destruction. Does not count stats from incomplete games.
+	"""
+	def aggregate(self):
+		# if game is not complete, don't count the current scores
+		if not self.currentGameComplete:
+			self.numCorrectResponses = self.numCorrectResponses[:-1]
+
+			# if above array is empty, that means only one game was played and incomplete,
+			# therefore we don't bother with any calculation
+			if self.numCorrectResponses == []:
+				return
+
+			self.numCorrectDailyDoubles = self.numCorrectDailyDoubles[:-1]
+			self.finalJeopardyCorrect = self.finalJeopardyCorrect[:-1]
+
+		# updating stats in cache
+		statsPath = Path('.', 'cache', 'stats.csv')
+		if statsPath.exists():
+			divisor = 2 # there is previous data we should avg with
+			statsDF = pd.read_csv(statsPath)
+		else:
+			divisor = 1 # there is no previous data
+
+			# create stats data frame
+			d = {'AvgCorrectResponses': [0.0], 'AvgCorrectResponsePct': [0.0], 'CorrectDailyDoublePct': [0.0], 'CorrectFinalJeopardyPct': [0.0]}
+			statsDF = pd.DataFrame(data=d)
+
+		# correct responses
+		correctResponseAvg = sum(self.numCorrectResponses) / len(self.numCorrectResponses)
+		correctResponseAvgPct = correctResponseAvg / 60 # number of clues in standard game
+
+		statsDF.at[0, "AvgCorrectResponses"] = (statsDF.at[0, "AvgCorrectResponses"] + correctResponseAvg) / divisor
+		statsDF.at[0, "AvgCorrectResponsePct"] = (statsDF.at[0, "AvgCorrectResponsePct"] + correctResponseAvgPct) / divisor
+
+		# daily doubles
+		correctDailyDoublePct = sum(self.numCorrectDailyDoubles) / (3 * len(self.numCorrectDailyDoubles))
+		statsDF.at[0, "CorrectDailyDoublePct"] = (statsDF.at[0, "CorrectDailyDoublePct"] + correctDailyDoublePct) / divisor
+
+		# final jeopardy
+		correctFinalJeopardyPct = sum(self.finalJeopardyCorrect) / len(self.finalJeopardyCorrect)
+		statsDF.at[0, "CorrectFinalJeopardyPct"] = (statsDF.at[0, "CorrectFinalJeopardyPct"] + correctFinalJeopardyPct) / divisor
+
+		statsDF.to_csv(statsPath, index=False)
+
+	# destructor
+	def __del__(self):
+		self.aggregate()
+
+
 class Game:
 	"""Representation of a Jeopardy! game board.
 
@@ -49,6 +143,7 @@ class Game:
 	autoMode = False
 
 	def __init__(self, gameId):
+		self.stats = Stats()
 		self.newGame(gameId)
 
 		autoplay = input("Would you like to use autoplay? Y/N: ").lower()
@@ -84,12 +179,13 @@ class Game:
 			print("Game does not exist.")
 			sys.exit()
 
-		# initialize board and print game info
-		self.initBoard()
-
+		# initialize board/stats and print game info
 		system('cls||clear')
 		self.title = self.page.select('#game_title > h1')
 		print(f"\n{self.title[0].getText()}\n")
+
+		self.initBoard()
+		self.stats.initForNewGame()
 
 	"""
 	initBoard(self, round)
@@ -240,6 +336,8 @@ class Game:
 		elif answer == correctResponse:
 			print(Back.GREEN + Fore.BLACK + "Correct!")
 			self.score += points
+			
+			self.stats.addCorrectResponse(isDailyDouble)
 		# Incorrect
 		else:
 			wrongAnswer = True
@@ -260,6 +358,8 @@ class Game:
 					self.score += 2 * points
 				else:
 					self.score += points
+
+				self.stats.addCorrectResponse(isDailyDouble)
 			
 			return
 		
@@ -335,6 +435,7 @@ class Game:
 		if answer == correct_response.lower():
 			print(Back.GREEN + Fore.BLACK + "Correct!")
 			self.score += wager
+			self.stats.addCorrectFinalJeopardy()
 		# Incorrect
 		else:
 			print(f"Correct response: ", end='')
@@ -344,6 +445,7 @@ class Game:
 			answer = input("Press enter to continue, or another key if you actually got it right. ")
 			if answer != '':
 				self.score += 2 * wager
+				self.stats.addCorrectFinalJeopardy()
 
 	"""
 	printScores(self, round="Jeopardy", selector="jeopardy_round")
@@ -402,6 +504,7 @@ class Game:
 
 		print("Welcome to Final Jeopardy.\n")
 		self.finalJeopardy()
+		self.stats.currentGameComplete = True
 		self.printScores("Final Jeopardy", "final_jeopardy_round")
 		
 	"""
