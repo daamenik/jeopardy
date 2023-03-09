@@ -416,11 +416,14 @@ class Game:
 		stdResponse = stdResponse.replace("&", "and")
 		stdResponse = stdResponse.translate(str.maketrans('', '', string.punctuation))
 
+		if stdResponse == '':
+			return stdResponse
+
 		if stdResponse[0] == 'a' or stdResponse[0] == 't':
 			firstWord = stdResponse.split(' ')[0]
 			if firstWord == 'a':
 				stdResponse = stdResponse[2:]
-			elif firstWord == 'an':
+			elif firstWord == 'an' or firstWord == 'to':
 				stdResponse = stdResponse[3:]
 			elif firstWord == 'the':
 				stdResponse = stdResponse[4:]
