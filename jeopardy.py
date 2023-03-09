@@ -21,6 +21,7 @@ class Game:
 		- autoMode: bool that determines if player wants to step through the clues automatically, without
 			even looking at the clue board.
 		- dailyDoubleCoords: [row, col] of daily double
+		- title: Show number and date of game
 
 		------------- STATE DATA -------------
 		- boardState[6][5]: Stores which questions have been answered or are unavailable (denoted by bool)
@@ -87,8 +88,8 @@ class Game:
 		self.initBoard()
 
 		system('cls||clear')
-		title = self.page.select('#game_title > h1')
-		print(f"\n{title[0].getText()}\n")
+		self.title = self.page.select('#game_title > h1')
+		print(f"\n{self.title[0].getText()}\n")
 
 	"""
 	initBoard(self, round)
@@ -371,6 +372,7 @@ class Game:
 	def play(self):
 		if self.autoMode:
 			system('cls||clear')
+			print(f"\n{self.title[0].getText()}\n")
 			print("Welcome to the Jeopardy Round. Here is your board:\n")
 			self.printBoard()
 			input("Press enter to play.")
@@ -387,6 +389,7 @@ class Game:
 
 		if (self.autoMode):
 			system('cls||clear')
+			print(f"\n{self.title[0].getText()}\n")
 			print("Welcome to the Double Jeopardy Round. Here is your board:\n")
 			self.printBoard()
 			input("Press enter to play.")
