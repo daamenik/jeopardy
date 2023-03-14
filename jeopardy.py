@@ -79,8 +79,11 @@ class Stats:
 			divisor = 1 # there is no previous data
 
 			# create stats data frame
-			d = {'AvgCorrectResponses': [0.0], 'AvgCorrectResponsePct': [0.0], 'CorrectDailyDoublePct': [0.0], 'CorrectFinalJeopardyPct': [0.0]}
+			d = {'TotalGamesPlayed': [0], 'AvgCorrectResponses': [0.0], 'AvgCorrectResponsePct': [0.0], 'CorrectDailyDoublePct': [0.0], 'CorrectFinalJeopardyPct': [0.0]}
 			statsDF = pd.DataFrame(data=d)
+
+		# game total
+		statsDF.at[0, "TotalGamesPlayed"] = statsDF.at[0, "TotalGamesPlayed"] + len(self.numCorrectResponses)
 
 		# correct responses
 		correctResponseAvg = sum(self.numCorrectResponses) / len(self.numCorrectResponses)
@@ -97,6 +100,7 @@ class Stats:
 		correctFinalJeopardyPct = sum(self.finalJeopardyCorrect) / len(self.finalJeopardyCorrect)
 		statsDF.at[0, "CorrectFinalJeopardyPct"] = (statsDF.at[0, "CorrectFinalJeopardyPct"] + correctFinalJeopardyPct) / divisor
 
+		print(statsDF)
 		statsDF.to_csv(statsPath, index=False)
 
 	# destructor
