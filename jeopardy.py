@@ -217,9 +217,18 @@ class Game:
 		self.clues = [[{} for _ in range(5)] for _ in range(6)]
 
 		# populating board with clues
-		html_clues = self.page.select(f"#{round} .clue_text")
-		html_responses = self.page.select(f"#{round} td > div")
-		for clue, correctResponse in zip(html_clues, html_responses):
+		html_clues_and_responses = self.page.select(f"#{round} .clue_text")
+
+		html_clues = []
+		html_responses = []
+		for clue in html_clues_and_responses:
+			if (clue['id'][-1] == 'r'):
+				html_responses.append(clue.find(class_="correct_response"))
+			else:
+				html_clues.append(clue)
+
+		html_dd_info = self.page.select(f"#{round} td > div")
+		for clue, correctResponse, info in zip(html_clues, html_responses, html_dd_info):
 			# clue gathering
 			row = int(clue["id"][-3]) - 1 # category
 			col = int(clue["id"][-1]) - 1 # dollar amount
@@ -228,15 +237,12 @@ class Game:
 			self.cluesRemaining += 1
 
 			# is this the Daily Double?
-			if correctResponse.find(class_="clue_value_daily_double"):
+			if info.find(class_="clue_value_daily_double"):
 				self.dailyDoubleCoords = [row, col]
-
-			# response gathering
-			toggleTuple = str(correctResponse.get('onmouseover'))[6:]
 
 			self.clues[row][col] = {
 				"clue": clue.getText(),
-				"response": bs4.BeautifulSoup(make_tuple(toggleTuple)[2], features="html.parser").select('.correct_response')[0].getText()
+				"response": correctResponse.getText()
 			}
 
 	"""
@@ -423,13 +429,11 @@ class Game:
 			wager = int(wagerAnswer)
 
 		# getting clue
-		finalClue = self.page.select('.final_round .category > div')
-		toggleTuple = make_tuple(str(finalClue[0].get('onmouseout'))[6:])
-		print(Fore.YELLOW + f"\n{toggleTuple[2]}")
+		finalClue = self.page.select('#clue_FJ')[0].getText()
+		print(Fore.YELLOW + f"\n{finalClue}")
 
 		# getting correct response
-		toggleTuple = make_tuple(str(finalClue[0].get('onmouseover'))[6:])
-		correct_response = bs4.BeautifulSoup(toggleTuple[2], features="html.parser").select('.correct_response')[0].getText()
+		correct_response = self.page.select("#clue_FJ_r .correct_response")[0].getText()
 
 		# answer prompt
 		answer = input("\nType answer here: ").lower()
