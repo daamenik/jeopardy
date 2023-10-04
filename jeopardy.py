@@ -324,6 +324,12 @@ class Game:
 			self.printScore()
 			print(Back.LIGHTMAGENTA_EX + "\nDaily Double! Enter wager:", end='')
 			points = int(input(" "))
+			
+			# getting valid point value
+			validPointMax = 1000 if self.score < 1000 else self.score
+			while (points > validPointMax):
+				points = int(input(f"Please enter a value up to ${validPointMax}: "))
+
 			print()
 
 		# print clue
@@ -566,8 +572,8 @@ class GameLog:
 	seasonCachePath = ""
 
 	def __init__(self, season):
-		if season < 1 or season > 39:
-			print("There are only 39 seasons of Jeopardy.")
+		if season < 1 or season > 40:
+			print("There are only 40 seasons of Jeopardy available.")
 			sys.exit()
 
 		self.season = season
