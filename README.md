@@ -4,7 +4,7 @@ This is a program you can use to play and keep score for real Jeopardy! games, s
 ## Setup
 Python 3 and Pip required.
 1. Clone the repo
-2. In the repo's folder, run `pip -i .\requirements.txt`
+2. In the repo's folder, run `pip install -r .\requirements.txt`
 3. The cache is loaded with data from my games, because this is my repo and I can do whatever I want. If you want to clear the cache, delete everything from the `cache` directory. When you play your first game, all new files will be plaed there automatically.
 
 ## Usage
