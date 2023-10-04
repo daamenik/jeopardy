@@ -73,34 +73,47 @@ class Stats:
 		# updating stats in cache
 		statsPath = Path('.', 'cache', 'stats.csv')
 		if statsPath.exists():
-			divisor = 2 # there is previous data we should avg with
 			statsDF = pd.read_csv(statsPath)
 		else:
-			divisor = 1 # there is no previous data
-
 			# create stats data frame
-			d = {'TotalGamesPlayed': [0], 'AvgCorrectResponses': [0.0], 'AvgCorrectResponsePct': [0.0], 'CorrectDailyDoublePct': [0.0], 'CorrectFinalJeopardyPct': [0.0]}
+			d = {
+				'GamesPlayed': [0],
+		        'CorrectResponseTotal': [0],
+		        'CorrectDailyDoubleTotal': [0],
+		        'CorrectFinalJeopardyTotal': [0],
+		        'AvgCorrectResponses': [0.0],
+		        'AvgCorrectResponsePct': [0.0],
+		        'CorrectDailyDoublePct': [0.0],
+		        'CorrectFinalJeopardyPct': [0.0]
+		    }
 			statsDF = pd.DataFrame(data=d)
 
 		# game total
-		statsDF.at[0, "TotalGamesPlayed"] = statsDF.at[0, "TotalGamesPlayed"] + len(self.numCorrectResponses)
+		gamesPlayed = statsDF.at[0, "GamesPlayed"] + len(self.numCorrectResponses)
+		statsDF.at[0, "GamesPlayed"] = gamesPlayed
 
 		# correct responses
-		correctResponseAvg = sum(self.numCorrectResponses) / len(self.numCorrectResponses)
+		correctResponseTotal = sum(self.numCorrectResponses)
+		statsDF.at[0, "CorrectResponseTotal"] = statsDF.at[0, "CorrectResponseTotal"] + correctResponseTotal
+		correctResponseAvg = statsDF.at[0, "CorrectResponseTotal"] / gamesPlayed
 		correctResponseAvgPct = correctResponseAvg / 60 # number of clues in standard game
 
-		statsDF.at[0, "AvgCorrectResponses"] = (statsDF.at[0, "AvgCorrectResponses"] + correctResponseAvg) / divisor
-		statsDF.at[0, "AvgCorrectResponsePct"] = (statsDF.at[0, "AvgCorrectResponsePct"] + correctResponseAvgPct) / divisor
+		statsDF.at[0, "AvgCorrectResponses"] = correctResponseAvg
+		statsDF.at[0, "AvgCorrectResponsePct"] = correctResponseAvgPct
 
 		# daily doubles
-		correctDailyDoublePct = sum(self.numCorrectDailyDoubles) / (3 * len(self.numCorrectDailyDoubles))
-		statsDF.at[0, "CorrectDailyDoublePct"] = (statsDF.at[0, "CorrectDailyDoublePct"] + correctDailyDoublePct) / divisor
+		correctDailyDoubleTotal = sum(self.numCorrectDailyDoubles) + statsDF.at[0, "CorrectDailyDoubleTotal"]
+		correctDailyDoublePct = correctDailyDoubleTotal / (3 * gamesPlayed) # three daily doubles per standard game
+		statsDF.at[0, "CorrectDailyDoubleTotal"] = correctDailyDoubleTotal
+		statsDF.at[0, "CorrectDailyDoublePct"] = correctDailyDoublePct
 
 		# final jeopardy
-		correctFinalJeopardyPct = sum(self.finalJeopardyCorrect) / len(self.finalJeopardyCorrect)
-		statsDF.at[0, "CorrectFinalJeopardyPct"] = (statsDF.at[0, "CorrectFinalJeopardyPct"] + correctFinalJeopardyPct) / divisor
+		correctFinalJeopardyTotal = sum(self.finalJeopardyCorrect) + statsDF.at[0, "CorrectFinalJeopardyTotal"]
+		correctFinalJeopardyPct = correctFinalJeopardyTotal / gamesPlayed # one FJ per standard game
+		statsDF.at[0, "CorrectFinalJeopardyTotal"] = correctFinalJeopardyTotal
+		statsDF.at[0, "CorrectFinalJeopardyPct"] = correctFinalJeopardyPct
 
-		print(statsDF)
+		print(statsDF[['GamesPlayed', 'AvgCorrectResponses', 'AvgCorrectResponsePct', 'CorrectDailyDoublePct', 'CorrectFinalJeopardyPct']])
 		statsDF.to_csv(statsPath, index=False)
 
 	# destructor
@@ -362,7 +375,7 @@ class Game:
 
 		# did we make a judgement error?
 		if wrongAnswer or passed:
-			answer = input("Press enter to continue, or another key if you actually got it right. ")
+			answer = input("Press enter to continue, or another key and then enter if you actually got it right. ")
 			if answer != '':
 				if wrongAnswer:
 					self.score += 2 * points

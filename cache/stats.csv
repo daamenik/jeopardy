@@ -1,2 +1,2 @@
-TotalGamesPlayed,AvgCorrectResponses,AvgCorrectResponsePct,CorrectDailyDoublePct,CorrectFinalJeopardyPct
-42,30.618728637695312,0.5103121439615885,0.41510348849826384,0.717193603515625
+GamesPlayed,CorrectResponseTotal,CorrectDailyDoubleTotal,CorrectFinalJeopardyTotal,AvgCorrectResponses,AvgCorrectResponsePct,CorrectDailyDoublePct,CorrectFinalJeopardyPct
+50,1463,42,7,29.26,0.4876666666666667,0.28,0.14
